@@ -198,6 +198,7 @@ Modification history:
   2017-05-04 v1.95 donorth - Updated capability to read multiple input .obj files.
   2020-03-06 v2.0  donorth - Updated help documentation and README.md file.
   2020-03-10 v2.1  donorth - Broke down and added RSX-11 input format option.
+  2020-01-16 v2.2  friesga - Generate correct deposit commands in the ascii option.
 
 =cut
 
@@ -218,7 +219,7 @@ BEGIN { unshift(@INC, $FindBin::Bin);
 # external local modules
 
 # generic defaults
-my $VERSION = 'v2.1'; # version of code
+my $VERSION = 'v2.2'; # version of code
 my $HELP = 0; # set to 1 for man page output
 my $DEBUG = 0; # set to 1 for debug messages
 my $VERBOSE = 0; # set to 1 for verbose messages
@@ -356,13 +357,6 @@ if ($romtype eq 'BOOT') {
 
 }
 
-if ($VERBOSE) {
-    printf $LOG "ROM type is '%s'\n", $romtype;
-    printf $LOG "ROM space is %d. bytes\n", $memsize;
-    printf $LOG "ROM length is %d. addresses\n", $romsize;
-    printf $LOG "ROM base address is 0%06o\n", $rombase;
-}
-
 #----------------------------------------------------------------------------------------------------
 
 # read/process the input object file records
@@ -444,20 +438,27 @@ if ($romtype eq 'BOOT' || $romtype eq 'DIAG') {
 
 } elsif ($romtype eq 'BINA' || $romtype eq 'ASC9') {
 
-    # only copy the above instruction portion over
-    for (my $adr = 0; $adr < $memsize; $adr += 1) {
-	$mem[$rombase+$adr] = $memfill unless defined($mem[$rombase+$adr]);
-	$buf[$adr] = $mem[$rombase+$adr];
-    }
+	# get rom base address and size from object file
+	$rombase = $adrmin;
+	$romsize = $adrmax - $adrmin + 1;
 
+    # only copy the above instruction portion over
+    for (my $adr = 0; $adr < $romsize; $adr += 1) {
+		$mem[$rombase+$adr] = $memfill unless defined($mem[$rombase+$adr]);
+		$buf[$adr] = $mem[$rombase+$adr];
+    }
 }
 
 if ($VERBOSE) {
 
+    printf $LOG "ROM type is '%s'\n", $romtype;
+    printf $LOG "ROM space is %d. bytes\n", $memsize;
+    printf $LOG "ROM length is %d. addresses\n", $romsize;
+    printf $LOG "ROM base address is 0%06o\n", $rombase;
+
     # print checksum of entire device
     my $chksum = 0; map($chksum += $_, @buf);
     printf $LOG "ROM checksum is %06o (0x%04X)\n", $chksum, $chksum;
-
 }
 
 #----------------------------------------------------------------------------------------------------
@@ -529,8 +530,8 @@ if ($romtype eq 'BOOT' || $romtype eq 'DIAG') {
     printf $OUT "L %o\r\n", $adrmin;
 
     # output the PROM buffer as an ascii load file
-    for (my $idx = $adrmin; $idx < $adrmax+1; $idx += 2) {
-	printf $OUT "D %06o\r\n", (&n($buf[$idx+1])<<8) | &n($buf[$idx+0]);
+    for (my $idx = 0; $idx < $romsize; $idx += 2) {
+		printf $OUT "D %06o\r\n", (&n($buf[$idx+1])<<8) | &n($buf[$idx+0]);
     }
 
     # start program exec here
