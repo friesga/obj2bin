@@ -199,6 +199,7 @@ Modification history:
   2020-03-06 v2.0  donorth - Updated help documentation and README.md file.
   2020-03-10 v2.1  donorth - Broke down and added RSX-11 input format option.
   2020-01-16 v2.2  friesga - Generate correct deposit commands in the ascii option.
+  2020-01-16 v2.3  friesga - Added image option for use with the simh rom device.
 
 =cut
 
@@ -219,7 +220,7 @@ BEGIN { unshift(@INC, $FindBin::Bin);
 # external local modules
 
 # generic defaults
-my $VERSION = 'v2.2'; # version of code
+my $VERSION = 'v2.3'; # version of code
 my $HELP = 0; # set to 1 for man page output
 my $DEBUG = 0; # set to 1 for debug messages
 my $VERBOSE = 0; # set to 1 for verbose messages
@@ -247,6 +248,7 @@ my $NOERROR = GetOptions( "help"        => \$HELP,
 			  "console"     => sub { $romtype = 'DIAG'; },
 			  "binary"      => sub { $romtype = 'BINA'; },
 			  "ascii"       => sub { $romtype = 'ASC9'; },
+			  "image"       => sub { $romtype = 'IMAGE'; },
 			  "rt11"        => sub { $objtype = 'RT11'; },
 			  "rsx11"       => sub { $objtype = 'RSX11'; },
 			  "bytes=i"     => \$bytesper,
@@ -288,6 +290,7 @@ unless ($NOERROR
        --console               M9312 console/diagnostic prom .hex
        --binary                binary program load image .bin [default]
        --ascii                 ascii m9312 program load image .txt
+	   --image				   binary image for use in simh ROM device
        --rt11                  read .obj files in RT11 format
        --rsx11                 read .obj files in RSX11 format [default]
        --bytes=N               bytes per block on output hex format
@@ -340,7 +343,7 @@ if ($romtype eq 'BOOT') {
     $romfill = 0x00; # rom fill pattern
     $rombase = 0165000; # base address of rom
 
-} elsif ($romtype eq 'BINA' || $romtype eq 'ASC9') {
+} elsif ($romtype eq 'BINA' || $romtype eq 'ASC9' || $romtype eq 'IMAGE') {
 
     # program load image ... 56KB address space maximum
     %excaddr = ( ); # bytes to be skipped in rom crc calc
@@ -436,7 +439,7 @@ if ($romtype eq 'BOOT' || $romtype eq 'DIAG') {
 	$buf[$idx+3] = (($dat>>12)&0xF)^0x1;             # bits  15  14  13 ~12
     }
 
-} elsif ($romtype eq 'BINA' || $romtype eq 'ASC9') {
+} elsif ($romtype eq 'BINA' || $romtype eq 'ASC9' || $romtype eq 'IMAGE') {
 
 	# get rom base address and size from object file
 	$rombase = $adrmin;
@@ -537,6 +540,12 @@ if ($romtype eq 'BOOT' || $romtype eq 'DIAG') {
     # start program exec here
     printf $OUT "L %o\r\nS\r\n", $adrmin;
 
+} elsif ($romtype eq 'IMAGE') {
+
+    # output the PROM buffer as an image for use with the simh ROM device
+	for (my $idx = 0; $idx < $romsize; $idx += 2) {
+		print $OUT pack("s<", $buf[$idx+1]<<8 | $buf[$idx+0]);
+    }
 }
 
 # all done
